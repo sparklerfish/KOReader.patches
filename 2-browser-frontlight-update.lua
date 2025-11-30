@@ -1,6 +1,7 @@
 --[[
-    This user patch updates the Project: Title footer's frontlight widget
-    in real-time when the frontlight is adjusted.
+    This user patch updates the file browser frontlight
+    widget in real-time when the frontlight is adjusted.
+    Works with Project Title and 2-filemanager-titlebar patch.
 --]]
 
 local userpatch = require("userpatch")
@@ -10,7 +11,6 @@ local function patchFrontlightUpdate()
     local FileManager = require("apps/filemanager/filemanager")
 
     local function updateFileManagerFooter(target_widget)
-        -- If called with a specific widget that has file_chooser, use it directly
         if target_widget and target_widget.file_chooser and target_widget.file_chooser.updatePageInfo then
             target_widget.file_chooser:updatePageInfo()
             UIManager:setDirty(target_widget, function()
@@ -37,7 +37,14 @@ local function patchFrontlightUpdate()
 
     if FileManager and not FileManager._frontlight_patch_applied then
         FileManager._frontlight_patch_applied = true
+
+        -- Preserve existing handler (e.g., from 2-filemanager-titlebar.lua)
+        local orig_onFrontlightStateChanged = FileManager.onFrontlightStateChanged
+
         FileManager.onFrontlightStateChanged = function(self)
+            if orig_onFrontlightStateChanged then
+                orig_onFrontlightStateChanged(self)
+            end
             updateFileManagerFooter(self)
         end
     end
