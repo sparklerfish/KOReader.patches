@@ -1,6 +1,7 @@
 -- KOReader userpatch to require double-tap to open books in file browser
 -- Prevents accidental book opening with a single tap
 -- Configurable double-tap timeout in settings menu
+-- Supports: FileManager, CoverBrowser plugin, and Project Title plugin
 
 local FileManager = require("apps/filemanager/filemanager")
 local FileManagerMenu = require("apps/filemanager/filemanagermenu")
@@ -33,7 +34,9 @@ local function handleDoubleTapFileSelect(file_manager, item, orig_onFileSelect_f
     end
 
     -- Only apply double-tap to files, not folders
-    if not item.is_file then
+    -- Check both is_file (standard) and entry.file (history items)
+    local is_file = item.is_file or (item.file and not item.is_go_up)
+    if not is_file then
         return orig_onFileSelect_func(item)
     end
 
@@ -47,43 +50,65 @@ local function handleDoubleTapFileSelect(file_manager, item, orig_onFileSelect_f
         time_since_last_tap_fts = timeout_fts * 2  -- Force first tap
     end
 
-    if file_manager.last_tap_file == item.path and time_since_last_tap_fts < timeout_fts then
-        file_manager:openFile(item.path)
+    -- Use item.path or item.file for the file path
+    local item_path = item.path or item.file
+
+    if file_manager.last_tap_file == item_path and time_since_last_tap_fts < timeout_fts then
+        file_manager:openFile(item_path)
         file_manager.last_tap_file = nil
         file_manager.last_tap_time = nil
     else
-        file_manager.last_tap_file = item.path
+        file_manager.last_tap_file = item_path
         file_manager.last_tap_time = current_time
     end
 
     return true
 end
 
+-- Patch file_chooser.onFileSelect on a FileManager instance
+local function patchFileChooserOnFileSelect(file_manager)
+    local file_chooser = file_manager.file_chooser
+    if not file_chooser then
+        return
+    end
+
+    -- Skip if already patched by us
+    if file_chooser._double_tap_patched then
+        return
+    end
+
+    -- Save original function
+    if not file_chooser._orig_onFileSelect then
+        file_chooser._orig_onFileSelect = file_chooser.onFileSelect
+    end
+
+    -- Apply double-tap wrapper
+    function file_chooser:onFileSelect(item)
+        local orig_func = file_chooser._orig_onFileSelect
+        return handleDoubleTapFileSelect(file_manager, item, function(itm)
+            return orig_func(self, itm)
+        end)
+    end
+
+    file_chooser._double_tap_patched = true
+end
+
 local orig_FileManager_setupLayout = FileManager.setupLayout
 
 function FileManager:setupLayout()
     orig_FileManager_setupLayout(self)
-
-    local file_chooser = self.file_chooser
-    local file_manager = self
-
-    if file_chooser and not file_chooser._orig_onFileSelect then
-        file_chooser._orig_onFileSelect = file_chooser.onFileSelect
-    end
-
-    if file_chooser then
-        function file_chooser:onFileSelect(item)
-            local orig_func = file_chooser._orig_onFileSelect
-            return handleDoubleTapFileSelect(file_manager, item, function(itm)
-                return orig_func(self, itm)
-            end)
-        end
-    end
+    patchFileChooserOnFileSelect(self)
 end
 
 local function patchCoverBrowser()
     local ok, MosaicMenu = pcall(require, "mosaicmenu")
     if not ok or not MosaicMenu then
+        return
+    end
+
+    -- Only patch if MosaicMenu has onFileSelect (CoverBrowser plugin)
+    -- Project Title's MosaicMenu doesn't have onFileSelect - it uses onTapSelect
+    if not MosaicMenu.onFileSelect then
         return
     end
 
@@ -106,7 +131,14 @@ local orig_FileManager_init = FileManager.init
 
 function FileManager:init()
     orig_FileManager_init(self)
+
+    -- Re-patch CoverBrowser's MosaicMenu (if present)
     patchCoverBrowser()
+
+    -- Re-patch file_chooser.onFileSelect
+    -- This is needed because plugins like Project Title may have replaced
+    -- FileManager.setupLayout after our patch loaded, defining their own onFileSelect
+    patchFileChooserOnFileSelect(self)
 end
 
 local orig_FileManagerMenu_setUpdateItemTable = FileManagerMenu.setUpdateItemTable
