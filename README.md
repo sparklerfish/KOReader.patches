@@ -16,7 +16,7 @@ Requires double-tap to open books in the file browser, preventing accidental boo
 * **Features:**
   * Toggle double-tap requirement on/off
   * Configurable timeout (200-1000ms, default 500ms)
-  * Works with both File Browser and Cover Browser
+  * Works with File Browser, Cover Browser, and Project: Title
   * Folders and selection mode still use single-tap
 
 ### [🞂 2-browser-frontlight-update](2-browser-frontlight-update.lua)
