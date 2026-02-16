@@ -4,7 +4,15 @@ This repository contains userpatches for KOReader and/or its plugins.
 
 ## Installation
 
-See the [KOReader documentation](https://koreader.rocks/user_guide/#L2-userpatches).
+1. If it doesn't already exist, create `koreader/patches` directory
+
+2. Download the `.lua` patch file and copy it to the `koreader/patches` directory
+
+3. Restart KOReader
+
+You can see the list and status of your user patches and enable/disable them in `Patch Management`.
+
+See the [KOReader documentation](https://koreader.rocks/user_guide/#L2-userpatches) for more information.
 
 ## Patches
 
@@ -25,3 +33,12 @@ Updates Project: Title/Cover Browser frontlight widget in real time when frontli
 
 * **For use with Project: Title:** Requires [Project: Title](https://github.com/joshuacant/ProjectTitle) with "Replace folder name with device info" enabled.
 * **For use with Cover Browser:** Requires [2-filemanager-titlebar](https://github.com/sebdelsol/KOReader.patches/blob/main/2-filemanager-titlebar.lua) patch.
+
+### [🞂 2-redacted-screensaver](2-redact-screensaver.lua)
+
+A screensaver that shows the current page with random words/phrases covered by black "redaction" bars. 
+
+* **Settings:** Toggle via Screen -> Sleep screen -> Wallpaper -> Use redacted screensaver when reading
+* **Features:**
+  * Supports EPUBs/rolling documents. Currently does not work with paged documents like PDFs (perhaps in a future update!)
+  * Only applies while in reader view (i.e. while reading a compatible book); otherwise your regular screensaver will apply (i.e. in file browser or while reading a PDF).
