@@ -472,7 +472,6 @@ _G.dofile = function(filepath)
 
             for _, item in ipairs(wallpaper_submenu) do
                 if item.text and type(item.text) == "string" and item.text:find("redacted") then
-                    _G.dofile = orig_dofile
                     return result
                 end
             end
@@ -492,8 +491,6 @@ _G.dofile = function(filepath)
 
             logger.info("RedactedScreensaver: Successfully injected menu item into screensaver settings")
         end
-
-        _G.dofile = orig_dofile
     end
 
     return result
