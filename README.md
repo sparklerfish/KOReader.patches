@@ -34,7 +34,7 @@ Updates Project: Title/Cover Browser frontlight widget in real time when frontli
 * **For use with Project: Title:** Requires [Project: Title](https://github.com/joshuacant/ProjectTitle) with "Replace folder name with device info" enabled.
 * **For use with Cover Browser:** Requires [2-filemanager-titlebar](https://github.com/sebdelsol/KOReader.patches/blob/main/2-filemanager-titlebar.lua) patch.
 
-### [🞂 2-redacted-screensaver](2-redact-screensaver.lua)
+### [🞂 2-redacted-screensaver](2-redacted-screensaver.lua)
 
 A screensaver that shows the current page with random words/phrases covered by black "redaction" bars. 
 
