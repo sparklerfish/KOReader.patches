@@ -34,7 +34,7 @@ Updates Project: Title/Cover Browser frontlight widget in real time when frontli
 * **For use with Project: Title:** Requires [Project: Title](https://github.com/joshuacant/ProjectTitle) with "Replace folder name with device info" enabled.
 * **For use with Cover Browser:** Requires [2-filemanager-titlebar](https://github.com/sebdelsol/KOReader.patches/blob/main/2-filemanager-titlebar.lua) patch.
 
-### [🞂 2-redacted-screensaver](2-redacted-screensaver.lua)
+### [🞂 2-z-redacted-screensaver](2-z-redacted-screensaver.lua)
 
 A screensaver that shows the current page with random words/phrases covered by black "redaction" bars. 
 
@@ -42,3 +42,4 @@ A screensaver that shows the current page with random words/phrases covered by b
 * **Features:**
   * Supports EPUBs/rolling documents. Currently does not work with paged documents like PDFs (perhaps in a future update!)
   * Only applies while in reader view (i.e. while reading a compatible book); otherwise your regular screensaver will apply (i.e. in file browser or while reading a PDF).
+* **Compatibility note:** May not work if other patches that modify the screensaver functionality load after this one.  KOReader loads patches alphabetically, so if you're hitting issues and have a screensaver-related patch lower down, try renaming this to fall even later alphabetically.

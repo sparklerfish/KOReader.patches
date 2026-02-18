@@ -366,11 +366,13 @@ end
 
 local Screensaver = require("ui/screensaver")
 
-if not Screensaver._orig_setup then
-    Screensaver._orig_setup = Screensaver.setup
-    Screensaver._orig_show = Screensaver.show
-    Screensaver._orig_cleanup = Screensaver.cleanup
-    Screensaver._orig_modeExpectsPortrait = Screensaver.modeExpectsPortrait
+-- Save current state to allow chaining with other screensaver patches
+-- Use unique names to avoid conflicts with other patches
+if not Screensaver._redacted_orig_setup then
+    Screensaver._redacted_orig_setup = Screensaver.setup
+    Screensaver._redacted_orig_show = Screensaver.show
+    Screensaver._redacted_orig_cleanup = Screensaver.cleanup
+    Screensaver._redacted_orig_modeExpectsPortrait = Screensaver.modeExpectsPortrait
 end
 
 local function shouldShowRedacted()
@@ -385,7 +387,7 @@ local function shouldShowRedacted()
 end
 
 Screensaver.setup = function(screensaver_self, event, event_message)
-    Screensaver._orig_setup(screensaver_self, event, event_message)
+    Screensaver._redacted_orig_setup(screensaver_self, event, event_message)
 
     if shouldShowRedacted() then
         logger.info("RedactedScreensaver: Activating redacted screensaver")
@@ -395,7 +397,7 @@ end
 
 Screensaver.show = function(screensaver_self)
     if screensaver_self.screensaver_type ~= "redacted" then
-        return Screensaver._orig_show(screensaver_self)
+        return Screensaver._redacted_orig_show(screensaver_self)
     end
 
     local ui = require("apps/reader/readerui").instance
@@ -447,14 +449,14 @@ Screensaver.show = function(screensaver_self)
 end
 
 Screensaver.cleanup = function(screensaver_self)
-    Screensaver._orig_cleanup(screensaver_self)
+    Screensaver._redacted_orig_cleanup(screensaver_self)
 end
 
 Screensaver.modeExpectsPortrait = function(screensaver_self)
     if screensaver_self.screensaver_type == "redacted" then
         return false  -- Keep current orientation
     end
-    return Screensaver._orig_modeExpectsPortrait(screensaver_self)
+    return Screensaver._redacted_orig_modeExpectsPortrait(screensaver_self)
 end
 
 ------------------------------------------------------------
