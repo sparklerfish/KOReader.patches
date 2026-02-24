@@ -113,10 +113,17 @@ function RedactedScreensaverWidget:buildCacheKey()
         font_size = self.ui.rolling.font_size
     end
 
+    -- Include view zoom for paged documents so cache keys don't collide across
+    -- different zoom/scale levels.
+    local zoom_tag = 0
+    if self.ui.paging and self.ui.view and self.ui.view.state and self.ui.view.state.zoom then
+        zoom_tag = math.floor((self.ui.view.state.zoom or 1.0) * 100 + 0.5)
+    end
+
     local rotation = Screen:getRotationMode() or 0
 
-    local cache_key = string.format("redacted_boxes|%s|%s|f%d|r%d",
-        doc_file, tostring(page_id), font_size, rotation)
+    local cache_key = string.format("redacted_boxes|%s|%s|f%d|r%d|z%d",
+        doc_file, tostring(page_id), font_size, rotation, zoom_tag)
     return cache_key
 end
 
@@ -148,6 +155,8 @@ function RedactedScreensaverWidget:calculateRedactions()
         local ok, result = pcall(function()
             if self.ui.rolling then
                 return self:getRollingDocumentBoxes()
+            elseif self.ui.paging then
+                return self:getPagedDocumentBoxes()
             end
             return {}
         end)
@@ -225,6 +234,82 @@ function RedactedScreensaverWidget:getRollingDocumentBoxes()
         end
     end
     return boxes
+end
+
+-- Extract word boxes for paged documents (PDF / DjVu, etc.).
+-- Returns an array of screen-space boxes { x,y,w,h, word }.
+function RedactedScreensaverWidget:getPagedDocumentBoxes()
+    local boxes = {}
+    if not self.document then
+        logger.warn("RedactedScreensaver: No document for paged extraction")
+        return boxes
+    end
+
+    -- Determine visible pages (supports single/two-page and scroll paging)
+    local pages = {}
+    if self.ui and self.ui.view and self.ui.view.getCurrentPageList then
+        pages = self.ui.view:getCurrentPageList() or {}
+    end
+    if #pages == 0 and self.ui and self.ui.getCurrentPage then
+        local p = self.ui:getCurrentPage()
+        if p then pages = { p } end
+    end
+    if #pages == 0 then return boxes end
+
+    for _, page in ipairs(pages) do
+        -- Prefer document:getPageTextBoxes() where available (returns lines/words)
+        local ok, page_lines = pcall(self.document.getPageTextBoxes, self.document, page)
+        if ok and page_lines and #page_lines > 0 then
+            for _, line in ipairs(page_lines) do
+                for _, w in ipairs(line) do
+                    local x0 = w.x0 or (w.sbox and w.sbox.x)
+                    local y0 = w.y0 or (w.sbox and w.sbox.y)
+                    local x1 = w.x1 or (w.sbox and (w.sbox.x + w.sbox.w))
+                    local y1 = w.y1 or (w.sbox and (w.sbox.y + w.sbox.h))
+                    if x0 and y0 and x1 and y1 and x1 > x0 and y1 > y0 then
+                        local pbox = { x = x0, y = y0, w = x1 - x0, h = y1 - y0 }
+                        local sbox = self.ui.view:pageToScreenTransform(page, pbox)
+                        if sbox and sbox.w and sbox.h and sbox.w > 0 and sbox.h > 0 then
+                            table.insert(boxes, { x = sbox.x, y = sbox.y, w = sbox.w, h = sbox.h, word = w.word or "" })
+                        end
+                    end
+                end
+            end
+        else
+            -- Fallback: use page-box extraction from positions (slower but more general)
+            local ok2, native_dim = pcall(self.document.getNativePageDimensions, self.document, page)
+            if ok2 and native_dim then
+                local ppos0 = { page = page, x = 0, y = 0 }
+                local ppos1 = { page = page, x = native_dim.w, y = native_dim.h }
+                local ok3, page_boxes = pcall(self.document.getPageBoxesFromPositions, self.document, page, ppos0, ppos1)
+                if ok3 and page_boxes and #page_boxes > 0 then
+                    for _, line in ipairs(page_boxes) do
+                        for _, wb in ipairs(line) do
+                            if wb.x0 and wb.y0 and wb.x1 and wb.y1 then
+                                local pbox = { x = wb.x0, y = wb.y0, w = wb.x1 - wb.x0, h = wb.y1 - wb.y0 }
+                                local sbox = self.ui.view:pageToScreenTransform(page, pbox)
+                                if sbox and sbox.w and sbox.h and sbox.w > 0 and sbox.h > 0 then
+                                    table.insert(boxes, { x = sbox.x, y = sbox.y, w = sbox.w, h = sbox.h, word = wb.word or "" })
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Deduplicate boxes by rounded rect key
+    local seen = {}
+    local filtered = {}
+    for _, b in ipairs(boxes) do
+        local key = string.format("%.0f_%.0f_%.0f_%.0f", b.x or 0, b.y or 0, b.w or 0, b.h or 0)
+        if not seen[key] then
+            seen[key] = true
+            table.insert(filtered, b)
+        end
+    end
+    return filtered
 end
 
 function RedactedScreensaverWidget:selectRandomRedactions(boxes)
@@ -378,12 +463,12 @@ end
 local function shouldShowRedacted()
     -- Only use redacted if:
     -- 1. The toggle is enabled
-    -- 2. We're currently in a rolling document (EPUB, FB2, etc.)
-    -- 3. Not in a paged document (PDF, DjVu, etc.)
+    -- 2. We're in a supported reader view (rolling or paged). For paged documents
+    --    we attempt to extract page text boxes (PDF/DjVu) and map them to screen coords.
     local enabled = G_reader_settings:readSetting(REDACTED_ENABLED_SETTING) == true
     local ui = require("apps/reader/readerui").instance
-    local in_rolling_document = ui and ui.document and ui.rolling and not ui.paging
-    return enabled and in_rolling_document
+    local in_supported_document = ui and ui.document and (ui.rolling or ui.paging)
+    return enabled and in_supported_document
 end
 
 Screensaver.setup = function(screensaver_self, event, event_message)
