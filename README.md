@@ -40,6 +40,6 @@ A screensaver that shows the current page with random words/phrases covered by b
 
 * **Settings:** Toggle via Screen -> Sleep screen -> Wallpaper -> Use redacted screensaver when reading
 * **Features:**
-  * Supports EPUBs/rolling documents. Currently does not work with paged documents like PDFs (perhaps in a future update!)
-  * Only applies while in reader view (i.e. while reading a compatible book); otherwise your regular screensaver will apply (i.e. in file browser or while reading a PDF).
+  * Supports EPUBs/rolling documents and PDFs/paged documents.
+  * Only applies while in reader view (i.e. while reading a compatible book); otherwise your regular screensaver will apply (i.e. in file browser).
 * **Compatibility note:** May not work if other patches that modify the screensaver functionality load after this one.  KOReader loads patches alphabetically, so if you're hitting issues and have a screensaver-related patch lower down, try renaming this to fall even later alphabetically.

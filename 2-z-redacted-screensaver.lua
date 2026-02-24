@@ -2,7 +2,7 @@
     Redacted Screensaver Patch for KOReader
 
     Shows the current page with random words covered by black "redaction" bars.
-    Works with EPUB, FB2, and other rolling documents.
+    Works with rolling and paged documents while in reader view.
 --]]
 
 local Blitbuffer = require("ffi/blitbuffer")
