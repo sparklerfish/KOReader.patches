@@ -338,6 +338,15 @@ local function isAppliedLate(declarations)
     return false
 end
 
+local function makesInlineBox(declarations)
+    for _, declaration in ipairs(declarations) do
+        if declaration.property == "display" and declaration.value:find("^inline%-") then
+            return true
+        end
+    end
+    return false
+end
+
 local function snappedSpacingCss(declaration, font_scale, snapping)
     local lines = lengthInLines(declaration.value, snapping.lines_per_unit, font_scale)
     if lines then
@@ -399,6 +408,13 @@ local function snapRule(selectors, declarations_css, snapping, output)
         local line_pitch_late_css = snapping.applies_late and font_size.is_important and APPLIED_AFTER_ALL_OTHER_RULES or ""
         table.insert(output, rewrittenSelectors(individual_selectors, snapping, "") .. " { " .. line_pitch_late_css
             .. font_size.conditions_css .. "-cr-only-if: not-inline; line-height: " .. line_pitch .. "urlh !important; }")
+        -- Inline text in another size keeps its baseline on the line's
+        -- instead of being centered in it by strut-confined. Inline boxes
+        -- are left alone: their lines would collapse.
+        if not makesInlineBox(declarations) then
+            table.insert(output, rewrittenSelectors(individual_selectors, snapping, "") .. " { " .. line_pitch_late_css
+                .. font_size.conditions_css .. "-cr-only-if: inline; line-height: 0 !important; }")
+        end
     end
 end
 
