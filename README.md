@@ -34,6 +34,21 @@ Updates Project: Title/Cover Browser frontlight widget in real time when frontli
 * **For use with Project: Title:** Requires [Project: Title](https://github.com/joshuacant/ProjectTitle) with "Replace folder name with device info" enabled.
 * **For use with Cover Browser:** Requires [2-filemanager-titlebar](https://github.com/sebdelsol/KOReader.patches/blob/main/2-filemanager-titlebar.lua) patch.
 
+### [🞂 2-snap-line-height](2-snap-line-height.lua)
+
+Keeps the text of EPUBs and other reflowable books on a grid of whole lines, so every full page ends at the same place instead of leaving a different sliver of empty space at the bottom.
+
+* **Requires:** KOReader v2026.07.2-26 (nightly of 2026-08-03) or later. On older versions the patch won't load, and Patch Management marks it with ⚠.
+* **Features:**
+  * Rounds vertical margins, padding and spacer heights to whole lines. This covers KOReader's stylesheet, the book's own styles and your style tweaks.
+  * Gives all text the same line height. Larger headings take up two or more whole lines.
+  * Superscripts and larger inline text don't push lines apart.
+  * Your style tweaks still take priority over the book's styles.
+* **Limitations:**
+  * Images, borders, and elements whose inline style sets their own margins shift the rest of their page off the grid.
+  * Line heights set by the book are ignored.
+  * Books that set a small fixed font size get a full line of height for each line of text, so they look loosely spaced. The "Ignore publisher font sizes" style tweak (Style tweaks → Font size and families) helps with those.
+
 ### [🞂 2-z-redacted-screensaver](2-z-redacted-screensaver.lua)
 
 A screensaver that shows the current page with random words/phrases covered by black "redaction" bars. 
