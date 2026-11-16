@@ -230,14 +230,19 @@ local function individualSelectors(selectors)
     return individual
 end
 
-local function guarded(selector, guard)
+local function splitAtPseudoElement(selector)
     local subject, pseudo_element = selector:match("^(.-)(::[%w-]+)$")
-    if not subject then
-        local candidate_subject, name = selector:match("^(.-):([%w-]+)$")
-        if candidate_subject and IS_LEGACY_SINGLE_COLON_PSEUDO_ELEMENT[name:lower()] then
-            subject, pseudo_element = candidate_subject, ":" .. name
-        end
+    if subject then
+        return subject, pseudo_element
     end
+    local candidate_subject, name = selector:match("^(.-):([%w-]+)$")
+    if candidate_subject and IS_LEGACY_SINGLE_COLON_PSEUDO_ELEMENT[name:lower()] then
+        return candidate_subject, ":" .. name
+    end
+end
+
+local function guarded(selector, guard)
+    local subject, pseudo_element = splitAtPseudoElement(selector)
     if subject then
         return subject .. guard .. pseudo_element
     end
@@ -338,6 +343,36 @@ local function isAppliedLate(declarations)
     return false
 end
 
+local function takesItOutOfTheLine(declarations)
+    for _, declaration in ipairs(declarations) do
+        if declaration.property == "float" and declaration.value ~= "none" then
+            return true
+        end
+        if declaration.property == "display" and declaration.value ~= "inline" then
+            return true
+        end
+    end
+    return false
+end
+
+local function subjectTokens(selector)
+    if splitAtPseudoElement(selector) then
+        return function() end
+    end
+    return (selector:match("([^%s>+~]+)$") or ""):gmatch("[%.#][%w_-]+")
+end
+
+local function isTakenOutOfTheLineElsewhere(individual_selectors, snapping)
+    for _, selector in ipairs(individual_selectors) do
+        for token in subjectTokens(selector) do
+            if snapping.out_of_line_subjects[token] then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function snappedSpacingCss(declaration, font_scale, snapping)
     local lines = lengthInLines(declaration.value, snapping.lines_per_unit, font_scale)
     if lines then
@@ -365,6 +400,17 @@ end
 local function snapRule(selectors, declarations_css, snapping, output)
     local individual_selectors = individualSelectors(selectors)
     local declarations = parseDeclarations(declarations_css)
+    local is_out_of_line = takesItOutOfTheLine(declarations)
+    if snapping.is_collecting_out_of_line_subjects then
+        if is_out_of_line then
+            for _, selector in ipairs(individual_selectors) do
+                for token in subjectTokens(selector) do
+                    snapping.out_of_line_subjects[token] = true
+                end
+            end
+        end
+        return
+    end
     local font_size = fontSizeOfRule(individual_selectors, declarations, snapping)
     local rule_sets_width = setsWidth(declarations)
     local late_css = (snapping.applies_late or isAppliedLate(declarations)) and APPLIED_AFTER_ALL_OTHER_RULES or ""
@@ -396,9 +442,18 @@ local function snapRule(selectors, declarations_css, snapping, output)
     end
     if font_size.is_declared then
         local line_pitch = linePitchForFontScale(font_size.scale, snapping.lines_per_unit)
+        is_out_of_line = is_out_of_line or isTakenOutOfTheLineElsewhere(individual_selectors, snapping)
         local line_pitch_late_css = snapping.applies_late and font_size.is_important and APPLIED_AFTER_ALL_OTHER_RULES or ""
         table.insert(output, rewrittenSelectors(individual_selectors, snapping, "") .. " { " .. line_pitch_late_css
-            .. font_size.conditions_css .. "-cr-only-if: not-inline; line-height: " .. line_pitch .. "urlh !important; }")
+            .. font_size.conditions_css .. (is_out_of_line and "" or "-cr-only-if: not-inline; ")
+            .. "line-height: " .. line_pitch .. "urlh !important; }")
+        -- Inline text in another size keeps its baseline on the line's
+        -- instead of being moved by strut-confined. Not for what floats or
+        -- isn't inline: with no line height, its lines would collapse.
+        if not is_out_of_line then
+            table.insert(output, rewrittenSelectors(individual_selectors, snapping, "") .. " { " .. line_pitch_late_css
+                .. font_size.conditions_css .. "-cr-only-if: inline; line-height: 0 !important; }")
+        end
     end
 end
 
@@ -591,7 +646,7 @@ local function fragmentScope(source, all_fragment_ids)
     return { fragment = "DocFragment:not(" .. ids .. ")", on_fragment_itself = ":where(:not(" .. ids .. "))" }
 end
 
-local function lineGridCss(style_tweak, with_book_styles, tweaks_css)
+local function snapAllStylesheets(style_tweak, with_book_styles, tweaks_css, out_of_line_subjects, is_collecting)
     local document = style_tweak.ui.document
     local lines_per_unit = linesPerCssUnit(document)
     local font_scale_of_selector = {}
@@ -600,6 +655,8 @@ local function lineGridCss(style_tweak, with_book_styles, tweaks_css)
     snapStylesheetFile(style_tweak.ui.typeset.css, {
         lines_per_unit = lines_per_unit,
         font_scale_of_selector = font_scale_of_selector,
+        out_of_line_subjects = out_of_line_subjects,
+        is_collecting_out_of_line_subjects = is_collecting,
         already_snapped = {},
         readFile = readLocalFile,
     }, output)
@@ -617,6 +674,8 @@ local function lineGridCss(style_tweak, with_book_styles, tweaks_css)
                 font_scale_of_selector = font_scale_of_selector,
                 makes_important = true,
                 guards_inline_styles = true,
+                out_of_line_subjects = out_of_line_subjects,
+                is_collecting_out_of_line_subjects = is_collecting,
                 fragment_scope = fragmentScope(source, style_tweak.line_grid_fragment_ids),
                 already_snapped = already_snapped,
                 readFile = style_tweak.line_grid_read_book_file,
@@ -635,10 +694,18 @@ local function lineGridCss(style_tweak, with_book_styles, tweaks_css)
             lines_per_unit = lines_per_unit,
             font_scale_of_selector = font_scale_of_selector,
             applies_late = true,
+            out_of_line_subjects = out_of_line_subjects,
+            is_collecting_out_of_line_subjects = is_collecting,
             already_snapped = {},
         }, tweaks_output)
     end
     return table.concat(output, "\n"), table.concat(tweaks_output, "\n")
+end
+
+local function lineGridCss(style_tweak, with_book_styles, tweaks_css)
+    local out_of_line_subjects = {}
+    snapAllStylesheets(style_tweak, with_book_styles, tweaks_css, out_of_line_subjects, true)
+    return snapAllStylesheets(style_tweak, with_book_styles, tweaks_css, out_of_line_subjects, false)
 end
 
 local function lineGridInputs(style_tweak, tweaks_css)
